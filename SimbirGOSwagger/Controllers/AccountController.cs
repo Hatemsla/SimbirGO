@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Authentication;
+﻿using System.Security.Claims;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -12,12 +13,10 @@ namespace SimbirGOSwagger.Controllers;
 public class AccountController : ControllerBase
 {
     private readonly IUserService _userService;
-    private readonly ITokenBlacklistService _tokenBlacklistService;
 
-    public AccountController(IUserService userService, ITokenBlacklistService tokenBlacklistService)
+    public AccountController(IUserService userService)
     {
         _userService = userService;
-        _tokenBlacklistService = tokenBlacklistService;
     }
 
     [HttpPost]
@@ -45,10 +44,7 @@ public class AccountController : ControllerBase
         {
             if (response.StatusCode == Domain.Enum.StatusCode.Ok)
             {
-                if (!_tokenBlacklistService.IsTokenInvalid(response.Data))
-                    return Ok(new { Token = response.Data });
-                
-                return Unauthorized(new { Message = "Неверные учетные данные" });
+                return Ok(new { Token = response.Data });
             }
         }
 
@@ -75,14 +71,11 @@ public class AccountController : ControllerBase
 
         if (!string.IsNullOrEmpty(token))
         {
-            // Инвалидируем текущий токен
-            _tokenBlacklistService.InvalidateToken(token);
             return Ok(new { Message = "Выход из аккаунта выполнен" });
         }
 
         return BadRequest(new { Message = "Токен не найден" });
     }
-
 
     [HttpGet]
     [Authorize]
@@ -93,20 +86,10 @@ public class AccountController : ControllerBase
         {
             var response = await _userService.GetUserByName(userName);
 
-            return Ok(response.Data);
+            if(response.StatusCode == Domain.Enum.StatusCode.Ok)
+                return Ok(response.Data);
         }
 
         return BadRequest();
     }
-
-    // [HttpGet("{id}"), Authorize(Roles = "Admin")]
-    // public async Task<IActionResult> GetUser(int id)
-    // {
-    //     var response = await _userService.GetUser(id);
-    //     
-    //     if(response.StatusCode == Domain.Enum.StatusCode.Ok)
-    //         return Ok(response);
-    //     
-    //     return NotFound(new { Response = response.Description });
-    // }
 }

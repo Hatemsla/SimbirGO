@@ -1,22 +1,18 @@
-﻿using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
+﻿using Microsoft.EntityFrameworkCore;
 using SimbirGOSwagger.DAL.Interfaces;
 using SimbirGOSwagger.Domain.Entity;
 using SimbirGOSwagger.Domain.Enum;
 using SimbirGOSwagger.Domain.Response;
 using SimbirGOSwagger.Domain.ViewModels.User;
-using SimbirGOSwagger.Service.Helpers;
 using SimbirGOSwagger.Service.Interfaces;
 
 namespace SimbirGOSwagger.Service.Implementations;
 
-public class UserService : IUserService
+public class AdminUserService : IAdminUserService
 {
     private readonly IUserRepository _userRepository;
 
-    public UserService(IUserRepository userRepository)
+    public AdminUserService(IUserRepository userRepository)
     {
         _userRepository = userRepository;
     }
@@ -51,84 +47,35 @@ public class UserService : IUserService
             };
         }
     }
-    
-    public async Task<IBaseResponse<UserDetailViewModel>> GetUserByName(string name)
+
+    public async Task<IBaseResponse<IEnumerable<User>>> GetUsers(int start, int count)
     {
         try
         {
-            var user = await _userRepository.GetByName(name);
+            var users = await _userRepository.GetAll()
+                .Where(user => user.Id >= start)
+                .OrderBy(user => user.Id)
+                .Take(count)
+                .ToListAsync();
 
-            if (user == null)
+            if (users == null || !users.Any())
             {
-                return new BaseResponse<UserDetailViewModel>()
+                return new BaseResponse<IEnumerable<User>>()
                 {
-                    Description = "Пользователь не найден",
+                    Description = "Пользователи не найден",
                     StatusCode = StatusCode.UserNotFound
                 };
             }
 
-            var model = new UserDetailViewModel()
+            return new BaseResponse<IEnumerable<User>>()
             {
-                Username = user.Username,
-                Password = user.Password,
-                Balance = user.Balance
-            };
-
-            return new BaseResponse<UserDetailViewModel>()
-            {
-                Data = model,
+                Data = users,
                 StatusCode = StatusCode.Ok
             };
         }
         catch (Exception e)
         {
-            return new BaseResponse<UserDetailViewModel>()
-            {
-                Description = "Внутренняя ошибка сервера",
-                StatusCode = StatusCode.InternalServerError
-            };
-        }
-    }
-    
-    public async Task<IBaseResponse<string>> SignIn(UserViewModel model)
-    {
-        try
-        {
-            var allUsers = _userRepository.GetAll();
-
-            var user = await allUsers.FirstOrDefaultAsync(x => x.Username == model.Username);
-
-            if (user == null)
-            {
-                return new BaseResponse<string>()
-                {
-                    Description = "Пользователь не найден",
-                    StatusCode = StatusCode.UserNotFound
-                };
-            }
-            
-            var claims = new List<Claim>
-            {
-                new(ClaimsIdentity.DefaultNameClaimType, user.Username),
-                new(ClaimsIdentity.DefaultRoleClaimType, user.IsAdmin ? "Admin" : "User")
-            };
-            
-            var jwt = new JwtSecurityToken(
-                issuer: AuthOptions.Issuer,
-                audience: AuthOptions.Audience,
-                claims: claims,
-                expires: DateTime.UtcNow.Add(TimeSpan.FromMinutes(5)),
-                signingCredentials: new SigningCredentials(AuthOptions.GetSymmetricSecurityKey(), SecurityAlgorithms.HmacSha256));
-
-            return new BaseResponse<string>()
-            {
-                Data = new JwtSecurityTokenHandler().WriteToken(jwt),
-                StatusCode = StatusCode.Ok
-            };
-        }
-        catch (Exception e)
-        {
-            return new BaseResponse<string>()
+            return new BaseResponse<IEnumerable<User>>()
             {
                 Description = "Внутренняя ошибка сервера",
                 StatusCode = StatusCode.InternalServerError
@@ -136,44 +83,7 @@ public class UserService : IUserService
         }
     }
 
-    public async Task<IBaseResponse<UserViewModel>> Update(UserViewModel model, string currentName)
-    {
-        try
-        {
-            var allUsers = _userRepository.GetAll();
-
-            var user = await allUsers.FirstOrDefaultAsync(x => x.Username == currentName);
-
-            if (user == null)
-            {
-                return new BaseResponse<UserViewModel>()
-                {
-                    Description = "Пользователь не найден",
-                    StatusCode = StatusCode.UserNotFound
-                };
-            }
-            
-            user.Username = model.Username;
-            user.Password = model.Password;
-
-            await _userRepository.Update(user);
-
-            return new BaseResponse<UserViewModel>()
-            {
-                StatusCode = StatusCode.Ok
-            };
-        }
-        catch (Exception e)
-        {
-            return new BaseResponse<UserViewModel>()
-            {
-                Description = "Внутренняя ошибка сервера",
-                StatusCode = StatusCode.InternalServerError
-            };
-        }
-    }
-
-    public async Task<IBaseResponse<string>> SignUp(UserViewModel model)
+    public async Task<IBaseResponse<string>> Create(AdminUserViewModel model)
     {
         try
         {
@@ -196,7 +106,9 @@ public class UserService : IUserService
             {
                 Id = newId,
                 Username = model.Username,
-                Password = model.Password
+                Password = model.Password,
+                IsAdmin = model.IsAdmin,
+                Balance = model.Balance
             };
 
             await _userRepository.Create(user);
@@ -204,6 +116,81 @@ public class UserService : IUserService
             return new BaseResponse<string>()
             {
                 Data = "Аккаунт успешно создан",
+                StatusCode = StatusCode.Ok
+            };
+        }
+        catch (Exception e)
+        {
+            return new BaseResponse<string>()
+            {
+                Description = "Внутренняя ошибка сервера",
+                StatusCode = StatusCode.InternalServerError
+            };
+        }
+    }
+
+    public async Task<IBaseResponse<string>> Update(int id, AdminUserViewModel model)
+    {
+        try
+        {
+            var allUsers = _userRepository.GetAll();
+
+            var user = await allUsers.FirstOrDefaultAsync(x => x.Id == id);
+
+            if (user == null)
+            {
+                return new BaseResponse<string>()
+                {
+                    Description = "Пользователь не найден",
+                    StatusCode = StatusCode.UserNotFound
+                };
+            }
+            
+            user.Username = model.Username;
+            user.Password = model.Password;
+            user.IsAdmin = model.IsAdmin;
+            user.Balance = model.Balance;
+
+            await _userRepository.Update(user);
+
+            return new BaseResponse<string>()
+            {
+                Data = "Данные успешно изменены",
+                StatusCode = StatusCode.Ok
+            };
+        }
+        catch (Exception e)
+        {
+            return new BaseResponse<string>()
+            {
+                Description = "Внутренняя ошибка сервера",
+                StatusCode = StatusCode.InternalServerError
+            };
+        }
+    }
+
+    public async Task<IBaseResponse<string>> Delete(int id)
+    {
+        try
+        {
+            var allUsers = _userRepository.GetAll();
+
+            var user = await allUsers.FirstOrDefaultAsync(x => x.Id == id);
+
+            if (user == null)
+            {
+                return new BaseResponse<string>()
+                {
+                    Description = "Пользователь не найден",
+                    StatusCode = StatusCode.UserNotFound
+                };
+            }
+            
+            await _userRepository.Delete(user);
+
+            return new BaseResponse<string>()
+            {
+                Data = "Аккаунт успешно удален",
                 StatusCode = StatusCode.Ok
             };
         }

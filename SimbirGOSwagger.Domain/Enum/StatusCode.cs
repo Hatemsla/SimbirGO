@@ -5,5 +5,8 @@ public enum StatusCode
     Ok,
     UserNotFound,
     InternalServerError,
-    UserAlreadyExists
+    UserAlreadyExists,
+    AccessDenied,
+    TransportNotFound,
+    TransportIncorrectType
 }
