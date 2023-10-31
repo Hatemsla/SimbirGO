@@ -8,18 +8,53 @@ using SimbirGOSwagger.Service.Interfaces;
 
 namespace SimbirGOSwagger.Service.Implementations;
 
-public class TransportService : ITransportService
+public class AdminTransportService : IAdminTransportService
 {
     private readonly ITransportRepository _transportRepository;
     private readonly IUserRepository _userRepository;
 
-    public TransportService(ITransportRepository transportRepository, IUserRepository userRepository)
+    public AdminTransportService(ITransportRepository transportRepository, IUserRepository userRepository)
     {
         _transportRepository = transportRepository;
         _userRepository = userRepository;
     }
 
-    public async Task<IBaseResponse<TransportViewModel>> GetTransport(int id)
+    public async Task<IBaseResponse<IEnumerable<Transport>>> GetTransports(int start, int count, string transportType)
+    {
+        try
+        {
+            var transports = await _transportRepository.GetAll()
+                .Where(transport => transport.Id >= start && transport.TransportType == (int)GetTransportType(transportType))
+                .OrderBy(transport => transport.Id)
+                .Take(count)
+                .ToListAsync();
+
+            if (transports == null || !transports.Any())
+            {
+                return new BaseResponse<IEnumerable<Transport>>()
+                {
+                    Description = "Транспорт не найден",
+                    StatusCode = StatusCode.TransportNotFound
+                };
+            }
+
+            return new BaseResponse<IEnumerable<Transport>>()
+            {
+                Data = transports,
+                StatusCode = StatusCode.Ok
+            };
+        }
+        catch (Exception e)
+        {
+            return new BaseResponse<IEnumerable<Transport>>()
+            {
+                Description = "Внутренняя ошибка сервера",
+                StatusCode = StatusCode.InternalServerError
+            };
+        }
+    }
+
+    public async Task<IBaseResponse<Transport>> GetTransport(int id)
     {
         try
         {
@@ -27,48 +62,39 @@ public class TransportService : ITransportService
 
             if (transport == null)
             {
-                return new BaseResponse<TransportViewModel>()
+                return new BaseResponse<Transport>()
                 {
                     Description = "Транспорт не найден",
                     StatusCode = StatusCode.TransportNotFound
                 };
             }
 
-            var transportModel = new TransportViewModel()
+            return new BaseResponse<Transport>()
             {
-                CanBeRented = transport.CanBeRented,
-                Color = transport.Color,
-                DayPrice = transport.DayPrice,
-                Description = transport.Description,
-                Identifier = transport.Identifier,
-                Latitude = transport.Latitude,
-                Longitude = transport.Longitude,
-                MinutePrice = transport.MinutePrice,
-                Model = transport.Model,
-                TransportType = GetTransportString(transport.TransportType),
-            };
-
-            return new BaseResponse<TransportViewModel>()
-            {
-                Data = transportModel,
+                Data = transport,
                 StatusCode = StatusCode.Ok
             };
         }
         catch (Exception e)
         {
-            return new BaseResponse<TransportViewModel>()
+            return new BaseResponse<Transport>()
             {
-                Description = "Внутрення ошибка сервера",
+                Description = "Внутренняя ошибка сервера",
                 StatusCode = StatusCode.InternalServerError
             };
         }
     }
-    
-    public async Task<IBaseResponse<string>> AddTransport(string username, TransportViewModel model)
+
+    public async Task<IBaseResponse<string>> AddTransport(AdminTransportViewModel model)
     {
         try
         {
-            if (GetTransportType(model.TransportType) == TransportType.None)
+            var allTransports = _transportRepository.GetAll();
+            
+            var newId = await allTransports.CountAsync() == 0 ? 1 : allTransports.MaxAsync(x => x.Id).Result + 1;
+
+            if (GetTransportType(model.TransportType) == TransportType.All ||
+                GetTransportType(model.TransportType) == TransportType.None)
             {
                 return new BaseResponse<string>()
                 {
@@ -77,35 +103,31 @@ public class TransportService : ITransportService
                 };
             }
 
-            var user = await _userRepository.GetByName(username);
+            var users = _userRepository.GetAll();
 
-            if (user == null)
+            if (!users.Any(x => x.Id == model.OwnerId))
             {
                 return new BaseResponse<string>()
                 {
-                    Description = "Владелец транспорта неопределен",
+                    Description = "Владелец транспорта не найден",
                     StatusCode = StatusCode.UserNotFound
                 };
             }
             
-            var allTransport = _transportRepository.GetAll();
-            
-            var newId = await allTransport.CountAsync() == 0 ? 1 : allTransport.MaxAsync(x => x.Id).Result + 1;
-            
             var transport = new Transport()
             {
                 Id = newId,
-                Owner = user.Id,
+                Owner = model.OwnerId,
                 CanBeRented = model.CanBeRented,
+                TransportType = (int)GetTransportType(model.TransportType),
+                Model = model.Model,
                 Color = model.Color,
-                DayPrice = (double)model.DayPrice!,
-                Description = model.Description,
                 Identifier = model.Identifier,
+                Description = model.Description,
                 Latitude = model.Latitude,
                 Longitude = model.Longitude,
                 MinutePrice = (double)model.MinutePrice!,
-                Model = model.Model,
-                TransportType = (int)GetTransportType(model.TransportType),
+                DayPrice = (double)model.DayPrice!
             };
 
             await _transportRepository.Create(transport);
@@ -126,33 +148,13 @@ public class TransportService : ITransportService
         }
     }
 
-    public async Task<IBaseResponse<string>> Update(string username, int transportId, TransportViewModel model)
+    public async Task<IBaseResponse<string>> Update(int id, AdminTransportViewModel model)
     {
         try
         {
-            if (GetTransportType(model.TransportType) == TransportType.None)
-            {
-                return new BaseResponse<string>()
-                {
-                    Description = "Неверный тип транспорта",
-                    StatusCode = StatusCode.TransportIncorrectType
-                };
-            }
-            
-            var user = await _userRepository.GetByName(username);
+            var allTransports = _transportRepository.GetAll();
 
-            if (user == null)
-            {
-                return new BaseResponse<string>()
-                {
-                    Description = "Владелец транспорта неопределен",
-                    StatusCode = StatusCode.UserNotFound
-                };
-            }
-            
-            var allTransport = _transportRepository.GetAll();
-
-            var transport = await allTransport.FirstOrDefaultAsync(x => x.Id == transportId);
+            var transport = await allTransports.FirstOrDefaultAsync(x => x.Id == id);
 
             if (transport == null)
             {
@@ -162,33 +164,45 @@ public class TransportService : ITransportService
                     StatusCode = StatusCode.TransportNotFound
                 };
             }
+            
+            var users = _userRepository.GetAll();
 
-            if (transport.Owner != user.Id)
+            if (!users.Any(x => x.Id == model.OwnerId))
             {
                 return new BaseResponse<string>()
                 {
-                    Description = "Только владелец транспорта может редактировать",
-                    StatusCode = StatusCode.AccessDenied
+                    Description = "Владелец транспорта не найден",
+                    StatusCode = StatusCode.UserNotFound
                 };
             }
             
-            transport.Description = model.Description;
+            if (GetTransportType(model.TransportType) == TransportType.All ||
+                GetTransportType(model.TransportType) == TransportType.None)
+            {
+                return new BaseResponse<string>()
+                {
+                    Description = "Неверный тип транспорта",
+                    StatusCode = StatusCode.TransportIncorrectType
+                };
+            }
+
+            transport.Owner = model.OwnerId;
+            transport.CanBeRented = model.CanBeRented;
             transport.TransportType = (int)GetTransportType(model.TransportType);
+            transport.Model = model.Model;
             transport.Color = model.Color;
             transport.Identifier = model.Identifier;
-            transport.Model = model.Model;
+            transport.Description = model.Description;
+            transport.Latitude = model.Latitude;
+            transport.Longitude = model.Longitude;
             transport.MinutePrice = (double)model.MinutePrice!;
             transport.DayPrice = (double)model.DayPrice!;
-            transport.Longitude = model.Longitude;
-            transport.Latitude = model.Latitude;
-            transport.CanBeRented = model.CanBeRented;
-            transport.CanBeRented = model.CanBeRented;
-
+            
             await _transportRepository.Update(transport);
 
             return new BaseResponse<string>()
             {
-                Data = "Данные успешно изменены",
+                Data = "Транспорт успешно изменен",
                 StatusCode = StatusCode.Ok
             };
         }
@@ -202,24 +216,13 @@ public class TransportService : ITransportService
         }
     }
 
-    public async Task<IBaseResponse<string>> Delete(string username, int transportId)
+    public async Task<IBaseResponse<string>> Delete(int id)
     {
         try
         {
-            var user = await _userRepository.GetByName(username);
-
-            if (user == null)
-            {
-                return new BaseResponse<string>()
-                {
-                    Description = "Владелец транспорта неопределен",
-                    StatusCode = StatusCode.UserNotFound
-                };
-            }
-            
             var allTransport = _transportRepository.GetAll();
 
-            var transport = await allTransport.FirstOrDefaultAsync(x => x.Id == transportId);
+            var transport = await allTransport.FirstOrDefaultAsync(x => x.Id == id);
             
             if (transport == null)
             {
@@ -227,15 +230,6 @@ public class TransportService : ITransportService
                 {
                     Description = "Транспорт не найден",
                     StatusCode = StatusCode.TransportNotFound
-                };
-            }
-
-            if (user.Id != transport.Owner)
-            {
-                return new BaseResponse<string>()
-                {
-                    Description = "Только владелец транспорта может удалять",
-                    StatusCode = StatusCode.AccessDenied
                 };
             }
             
@@ -256,7 +250,7 @@ public class TransportService : ITransportService
             };
         }
     }
-
+    
     private TransportType GetTransportType(string transportString)
     {
         switch (transportString)
@@ -267,23 +261,10 @@ public class TransportService : ITransportService
                 return TransportType.Bike;
             case "Scooter":
                 return TransportType.Scooter;
+            case "All":
+                return TransportType.All;
         }
 
         return TransportType.None;
-    }
-
-    private string GetTransportString(int transportType)
-    {
-        switch ((TransportType)transportType)
-        {
-            case TransportType.Car:
-                return "Car";
-            case TransportType.Bike:
-                return "Bike";
-            case TransportType.Scooter:
-                return "Scooter";
-        }
-
-        return "Error";
     }
 }

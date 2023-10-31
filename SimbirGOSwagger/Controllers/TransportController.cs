@@ -9,7 +9,7 @@ namespace SimbirGOSwagger.Controllers;
 [Route("/api/[controller]")]
 public class TransportController : ControllerBase
 {
-    private ITransportService _transportService;
+    private readonly ITransportService _transportService;
 
     public TransportController(ITransportService transportService)
     {
@@ -30,12 +30,12 @@ public class TransportController : ControllerBase
     [HttpPost, Authorize]
     public async Task<IActionResult> Create(TransportViewModel model)
     {
-        var response = await _transportService.AddTransport(model);
+        var response = await _transportService.AddTransport(HttpContext.User.Identity.Name, model);
 
         if (ModelState.IsValid)
         {
             if (response.StatusCode == Domain.Enum.StatusCode.Ok)
-                return Ok(response.Data);
+                return Ok(new { Message = response.Data });
         }
 
         return BadRequest(new { Message = response.Description });
@@ -44,12 +44,12 @@ public class TransportController : ControllerBase
     [HttpPut("{id}"), Authorize]
     public async Task<IActionResult> Update(int id, TransportViewModel model)
     {
-        var response = await _transportService.Update(id, model);
+        var response = await _transportService.Update(HttpContext.User.Identity.Name, id, model);
 
         if (ModelState.IsValid)
         {
             if (response.StatusCode == Domain.Enum.StatusCode.Ok)
-                return Ok(response.Data);
+                return Ok(new { Message = response.Data });
         }
 
         return BadRequest(new { Message = response.Description });
@@ -58,7 +58,7 @@ public class TransportController : ControllerBase
     [HttpDelete("{id}"), Authorize]
     public async Task<IActionResult> Delete(int id)
     {
-        var response = await _transportService.Delete(id);
+        var response = await _transportService.Delete(HttpContext.User.Identity.Name, id);
 
         if (response.StatusCode == Domain.Enum.StatusCode.Ok)
             return Ok(new { Message = response.Data });

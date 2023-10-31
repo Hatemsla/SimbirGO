@@ -2,9 +2,9 @@
 
 public enum TransportType
 {
-    Car,
-    Bike,
-    Scooter,
-    All,
-    None
+    Car = 1,
+    Bike = 2,
+    Scooter = 3,
+    All = 4,
+    None = 5
 }

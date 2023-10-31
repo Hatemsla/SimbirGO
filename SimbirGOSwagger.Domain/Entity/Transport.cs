@@ -5,7 +5,8 @@ namespace SimbirGOSwagger.Domain.Entity;
 [Table("Transport")]
 public class Transport
 {
-    public int Id { get; set; }
+    public long Id { get; set; }
+    public long Owner { get; set; }
 
     public bool CanBeRented { get; set; }
 
