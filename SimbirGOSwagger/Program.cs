@@ -58,6 +58,7 @@ builder.Services.AddScoped<IPaymentService, PaymentService>();
 builder.Services.AddScoped<ITransportService, TransportService>();
 builder.Services.AddScoped<IAdminTransportService, AdminTransportService>();
 builder.Services.AddScoped<IRentService, RentService>();
+builder.Services.AddScoped<IAdminRentService, AdminRentService>();
 
 builder.Services.AddAuthorization();
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
