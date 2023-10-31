@@ -1,13 +1,10 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-using SimbirGOSwagger;
 using SimbirGOSwagger.DAL;
 using SimbirGOSwagger.DAL.Interfaces;
 using SimbirGOSwagger.DAL.Repositories;
-using SimbirGOSwagger.Domain.Entity;
 using SimbirGOSwagger.Service.Helpers;
 using SimbirGOSwagger.Service.Implementations;
 using SimbirGOSwagger.Service.Interfaces;
@@ -53,12 +50,14 @@ builder.Services.AddDbContext<ApplicationDbContext>(options => options.UseNpgsql
 
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<ITransportRepository, TransportRepository>();
+builder.Services.AddScoped<IRentRepository, RentRepository>();
 
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IAdminUserService, AdminUserService>();
 builder.Services.AddScoped<IPaymentService, PaymentService>();
 builder.Services.AddScoped<ITransportService, TransportService>();
 builder.Services.AddScoped<IAdminTransportService, AdminTransportService>();
+builder.Services.AddScoped<IRentService, RentService>();
 
 builder.Services.AddAuthorization();
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

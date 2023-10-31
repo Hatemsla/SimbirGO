@@ -8,5 +8,7 @@ public enum StatusCode
     UserAlreadyExists,
     AccessDenied,
     TransportNotFound,
-    TransportIncorrectType
+    TransportIncorrectType,
+    RentIncorrectType,
+    RentNotFound
 }

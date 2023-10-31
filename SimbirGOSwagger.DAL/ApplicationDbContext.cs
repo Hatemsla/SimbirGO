@@ -12,6 +12,7 @@ public class ApplicationDbContext : DbContext
     
     public DbSet<User> User { get; set; }
     public DbSet<Transport> Transport { get; set; }
+    public DbSet<Rent> Rent { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
